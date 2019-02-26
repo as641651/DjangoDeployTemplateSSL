@@ -1,0 +1,37 @@
+version: "3"
+
+services:
+    app:
+      build:
+        context: .
+        dockerfile: Docker/prod/Dockerfile
+      ports:
+        - "8000:8000"
+      volumes:
+        - ./app:/app
+        # this volume is created when collectstatic command is run
+        # set static_root = /vol/static in settings.py
+        - static_files:/vol/static
+      command: >
+        sh -c "python manage.py collectstatic --noinput &&
+               python manage.py migrate &&
+               gunicorn -w 4 app.wsgi -b 0.0.0.0:8000"
+
+    nginx:
+      build:
+        context: .
+        dockerfile: Docker/prod/nginx/Dockerfile
+      ports:
+        - "80:80"
+        - "443:443"
+      volumes:
+        # app creates a docker volume, which is inturn mapped here
+        - static_files:/vol/static
+        - ${PWD}/Docker/prod/nginx/servers.conf:/etc/nginx/conf.d/servers.conf
+        # ssl keys
+        - ${PWD}/Docker/prod/nginx/ssl:/etc/ssl/nginx
+
+volumes:
+  # gets created when collectstatic command is run
+  # because of internal mapping, we never see this folder outside
+  static_files:
